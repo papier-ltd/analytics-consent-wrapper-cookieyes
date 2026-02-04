@@ -45,20 +45,18 @@ export const withCookieYes = <TAnalytics extends AnyAnalytics>(
             settings.enableDebugLogging && console.log('Will load wrapper');
         },
         shouldLoadSegment: async (ctx) => {
-            const { activeLaw, isUserActionCompleted, categories } =
-                getCkyConsent();
-            const consentModel =
-                settings.consentModel?.() ?? activeLawToConsentModel(activeLaw);
+            const initialConsent = getCkyConsent();
+            const consentModel = settings.consentModel?.() ?? activeLawToConsentModel(initialConsent?.activeLaw);
 
             if (consentModel === 'opt-in') {
-                await resolveWhen(
-                    () =>
-                        isUserActionCompleted &&
-                        Object.values(categories).some((v) => v),
-                    500
-                );
+                // FIX: Call getCkyConsent() INSIDE the callback to get fresh values each iteration
+                await resolveWhen(() => {
+                    const { isUserActionCompleted, categories } = getCkyConsent() || {};
+                    return isUserActionCompleted && Object.values(categories || {}).some((v) => v);
+                }, 500);
                 settings.enableDebugLogging && console.log('Will load segment');
             }
+
             return ctx.load({ consentModel });
         },
         getCategories: () => getCkyConsent().categories,
